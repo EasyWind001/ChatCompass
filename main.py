@@ -16,9 +16,9 @@ if sys.platform == 'win32':
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from database.db_manager import DatabaseManager
+from database.storage_adapter import StorageAdapter
 from scrapers.scraper_factory import ScraperFactory
-from config import get_ai_client, DATABASE_PATH
+from config import get_storage, get_ai_service, STORAGE_TYPE
 
 
 class ChatCompass:
@@ -26,22 +26,39 @@ class ChatCompass:
     
     def __init__(self):
         print("=" * 60)
-        print("ChatCompass - AI对话知识库管理系统")
+        print("ChatCompass - AI对话知识库管理系统 v1.2.2")
         print("=" * 60)
         
-        # 初始化数据库
-        self.db = DatabaseManager(DATABASE_PATH)
+        # 初始化存储（自动选择SQLite或Elasticsearch）
+        print(f"\n[INFO] 初始化存储后端: {STORAGE_TYPE}")
+        try:
+            storage = get_storage()
+            self.db = StorageAdapter(storage)
+            print(f"[OK] 存储初始化成功: {storage.__class__.__name__}")
+        except Exception as e:
+            print(f"[ERROR] 存储初始化失败: {e}")
+            raise
         
         # 初始化爬虫工厂
         self.scraper_factory = ScraperFactory()
         
-        # 初始化AI客户端
+        # 初始化AI服务（统一使用新的AIService）
+        print(f"[INFO] 初始化AI服务...")
         try:
-            self.ai_client = get_ai_client()
-            print(f"[OK] AI客户端初始化成功: {self.ai_client.__class__.__name__}")
+            self.ai_service = get_ai_service()
+            
+            # 检查AI服务状态
+            if self.ai_service.is_available():
+                status = self.ai_service.get_status()
+                print(f"[OK] AI服务已就绪")
+                print(f"    - 后端: {status['backend']}")
+                print(f"    - 模型: {status.get('model', 'N/A')}")
+            else:
+                print(f"[WARN] AI服务不可用（将跳过AI分析）")
+                self.ai_service = None
         except Exception as e:
-            print(f"[WARN] AI客户端初始化失败: {e}")
-            self.ai_client = None
+            print(f"[WARN] AI服务初始化失败: {e}")
+            self.ai_service = None
     
     def add_conversation_from_url(self, url: str):
         """从URL添加对话"""
@@ -60,24 +77,34 @@ class ChatCompass:
             category = None
             tags = []
             
-            if self.ai_client:
+            if self.ai_service:
                 print("  [2/3] AI分析中...")
                 try:
                     full_text = conversation_data.get_full_text()
-                    analysis = self.ai_client.analyze_conversation(full_text)
                     
-                    summary = analysis.summary
-                    category = analysis.category
-                    tags = analysis.tags
+                    # 使用新的AI服务进行分析
+                    analysis = self.ai_service.analyze_conversation(
+                        full_text, 
+                        conversation_data.title
+                    )
                     
-                    print(f"  [OK] 分析完成")
-                    print(f"      - 摘要: {summary[:50]}...")
-                    print(f"      - 分类: {category}")
-                    print(f"      - 标签: {', '.join(tags)}")
+                    if analysis:
+                        summary = analysis.summary
+                        category = analysis.category
+                        tags = analysis.tags
+                        
+                        print(f"  [OK] 分析完成")
+                        print(f"      - 摘要: {summary[:50]}..." if summary else "      - 摘要: (空)")
+                        print(f"      - 分类: {category}" if category else "      - 分类: (未分类)")
+                        print(f"      - 标签: {', '.join(tags)}" if tags else "      - 标签: (无)")
+                    else:
+                        print(f"  [WARN] AI分析未返回结果")
                 except Exception as e:
                     print(f"  [WARN] AI分析失败: {e}")
+                    import traceback
+                    traceback.print_exc()
             else:
-                print("  [2/3] 跳过AI分析（未配置）")
+                print("  [2/3] 跳过AI分析（服务不可用）")
             
             # 3. 保存到数据库
             print("  [3/3] 保存到数据库...")

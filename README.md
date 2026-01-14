@@ -290,44 +290,6 @@ ChatCompass/
 ├── docker-compose.yml        # Docker编排配置
 ├── .env.example              # 配置文件示例
 ├── .gitignore                # Git忽略规则
-├── main.py                   # 主程序入口
-├── config.py                 # 配置管理
-├── ai/                       # AI模块
-│   ├── __init__.py
-│   ├── ollama_client.py      # Ollama客户端
-│   ├── ai_service.py         # AI服务管理器（v1.2.2新增）
-│   └── openai_client.py      # OpenAI/DeepSeek客户端
-├── database/                 # 数据库模块
-│   ├── __init__.py
-│   ├── db_manager.py         # SQLite管理器（原有）
-│   ├── sqlite_manager.py     # SQLite存储（v1.2.2新增）
-│   ├── es_manager.py         # Elasticsearch管理器（v1.2.2新增）
-│   ├── storage_adapter.py    # 存储适配器（v1.2.2新增）
-│   ├── base_storage.py       # 存储基类和工厂（v1.2.2新增）
-│   ├── migrate_to_es.py      # 数据迁移工具（v1.2.2新增）
-│   ├── health_check.py       # 健康检查工具（v1.2.2新增）
-│   └── schema.sql            # 数据库schema
-├── scrapers/                 # 爬虫模块
-│   ├── __init__.py
-│   ├── base_scraper.py       # 爬虫基类
-│   ├── chatgpt_scraper.py    # ChatGPT爬虫
-│   ├── claude_scraper.py     # Claude爬虫
-│   └── scraper_factory.py    # 爬虫工厂
-├── tests/                    # 测试目录
-│   ├── test_db_manager.py
-│   ├── test_ai_service.py    # AI服务测试（v1.2.2新增）
-│   ├── test_es_manager.py    # ES测试（v1.2.2新增）
-│   └── test_integration.py   # 集成测试（v1.2.2新增）
-├── docs/                     # 文档目录
-│   ├── V1.2.2_PLAN.md        # v1.2.2开发计划
-│   ├── V1.2.2_PHASE1_COMPLETE.md
-│   ├── V1.2.2_PHASE2_COMPLETE.md
-│   ├── V1.2.2_PHASE3_COMPLETE.md
-│   └── DOCKER_GUIDE.md       # Docker使用指南
-└── data/                     # 数据目录
-    └── chatcompass.db        # SQLite数据库文件
-```
-│
 ├── main.py                   # 🎯 主程序入口
 ├── config.py                 # ⚙️ 配置管理
 ├── setup.py                  # 📦 安装脚本
@@ -339,41 +301,48 @@ ChatCompass/
 ├── run_tests.bat             # Windows测试脚本
 ├── run_tests.py              # 测试运行器
 │
-├── database/                 # 💾 数据库模块
-│   ├── __init__.py
-│   ├── db_manager.py         # 数据库管理器（核心）
-│   └── schema.sql            # 数据库表结构定义
-│
-├── scrapers/                 # 🕷️ 网页爬虫模块
-│   ├── __init__.py
-│   ├── base_scraper.py       # 爬虫基类
-│   ├── chatgpt_scraper.py    # ChatGPT爬虫实现
-│   ├── claude_scraper.py     # Claude爬虫实现
-│   └── scraper_factory.py    # 爬虫工厂（自动选择）
-│
 ├── ai/                       # 🤖 AI分析模块
 │   ├── __init__.py
-│   ├── ollama_client.py      # Ollama本地模型客户端
-│   └── openai_client.py      # OpenAI/DeepSeek API客户端
+│   ├── ollama_client.py      # Ollama客户端
+│   ├── ai_service.py         # AI服务管理器（v1.2.2新增）
+│   └── openai_client.py      # OpenAI/DeepSeek客户端
+│
+├── database/                 # 💾 数据库模块
+│   ├── __init__.py
+│   ├── db_manager.py         # SQLite管理器（原有）
+│   ├── sqlite_manager.py     # SQLite存储（v1.2.2新增）
+│   ├── es_manager.py         # Elasticsearch管理器（v1.2.2新增）
+│   ├── storage_adapter.py    # 存储适配器（v1.2.2新增）
+│   ├── base_storage.py       # 存储基类和工厂（v1.2.2新增）
+│   ├── migrate_to_es.py      # 数据迁移工具（v1.2.2新增）
+│   ├── health_check.py       # 健康检查工具（v1.2.2新增）
+│   └── schema.sql            # 数据库schema
+│
+├── scrapers/                 # 🕷️ 爬虫模块
+│   ├── __init__.py
+│   ├── base_scraper.py       # 爬虫基类
+│   ├── chatgpt_scraper.py    # ChatGPT爬虫
+│   ├── claude_scraper.py     # Claude爬虫
+│   └── scraper_factory.py    # 爬虫工厂
 │
 ├── tests/                    # 🧪 测试套件
 │   ├── __init__.py
 │   ├── conftest.py           # Pytest配置
 │   ├── README.md             # 测试说明
 │   ├── unit/                 # 单元测试
-│   │   ├── test_database.py
-│   │   ├── test_scrapers.py
-│   │   └── test_ai_clients.py
+│   │   └── (test files)
 │   └── integration/          # 集成测试
-│       └── test_full_workflow.py
+│       └── (test files)
 │
-└── docs/                     # 📚 文档目录
-    ├── PROJECT_SUMMARY.md            # 项目总结
-    ├── search_implementation.md      # 搜索实现文档
-    ├── SEARCH_CONTEXT_FEATURE.md     # 搜索增强功能文档
-    ├── SEARCH_ENHANCEMENT_SUMMARY.md # 搜索增强总结
-    └── archive/                      # 开发过程文档归档
-        └── ...
+├── docs/                     # 📚 文档目录
+│   ├── V1.2.2_PLAN.md        # v1.2.2开发计划
+│   ├── DOCKER_GUIDE.md       # Docker使用指南
+│   ├── DOCKER_QUICKSTART.md  # Docker快速入门
+│   ├── PROJECT_SUMMARY.md    # 项目总结
+│   └── archive/              # 开发过程文档归档
+│
+└── data/                     # 数据目录
+    └── chatcompass.db        # SQLite数据库文件
 ```
 
 ### 目录说明

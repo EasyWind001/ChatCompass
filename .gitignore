@@ -1,0 +1,103 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 环境变量
+.env
+
+# 数据库文件
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+data/
+
+# 但保留示例数据库结构
+!database/schema.sql
+
+# 日志
+*.log
+logs/
+
+# Playwright
+.playwright/
+
+# 测试
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# 打包
+*.spec
+build/
+dist/
+
+# 临时文件
+*.tmp
+temp/
+cache/
+demo*.py
+debug*.py
+test_*.py
+final_*.py
+verify_*.py
+rebuild*.py
+run_demo.py
+quick_test.py
+
+# 测试数据库
+test*.db
+demo*.db
+
+# 临时文档（开发过程中生成的）
+*_REPORT.md
+*_SUCCESS.md
+*_COMPLETE.md
+*_RESOLVED.md
+*_RESULTS.md
+RUNNING_*.md
+TESTING_*.md
+VERIFIED_*.md
+FINAL_*.md
+ISSUE_*.md
+SHOW_*.md
+NEW_*.md
+
+# 保留重要文档
+!README.md
+!CHANGELOG.md
+!LICENSE

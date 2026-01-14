@@ -1,0 +1,23 @@
+# Elasticsearch 配置文件
+# 针对ChatCompass优化的单节点配置
+
+cluster.name: chatcompass-cluster
+node.name: chatcompass-node
+
+# 网络设置
+network.host: 0.0.0.0
+http.port: 9200
+
+# 禁用安全功能（开发环境）
+xpack.security.enabled: false
+xpack.ml.enabled: false
+xpack.monitoring.enabled: false
+xpack.watcher.enabled: false
+
+# 索引设置
+action.auto_create_index: true
+action.destructive_requires_name: true
+
+# 中文分词支持
+# 需要安装 analysis-ik 插件
+# docker exec chatcompass-elasticsearch elasticsearch-plugin install https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v7.17.18/elasticsearch-analysis-ik-7.17.18.zip

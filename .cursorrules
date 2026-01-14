@@ -1,0 +1,119 @@
+# ChatCompass Project Rules for AI Assistants
+
+## 🎯 Quick Reference
+
+**Before any code change, AI assistants must:**
+1. ✅ Check current branch (never work on main/develop)
+2. ✅ Run tests before commit
+3. ✅ Use parameterized SQL queries (NO string concatenation)
+4. ✅ Follow commit message format: `<type>(<scope>): <subject>`
+
+## 📚 Full Documentation
+
+- **Complete Guide**: [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Branch Management**: [docs/BRANCH_MANAGEMENT.md](docs/BRANCH_MANAGEMENT.md)
+- **AI Assistant Rules**: [.ai-assistant-rules.md](.ai-assistant-rules.md)
+
+## 🔒 Security Rules (MANDATORY)
+
+### Rule #1: SQL Injection Prevention
+
+```python
+# ✅ CORRECT - Parameterized query
+cursor.execute("SELECT * FROM conversations WHERE title = ?", (user_input,))
+
+# ❌ FORBIDDEN - String concatenation (SQL injection risk)
+cursor.execute(f"SELECT * FROM conversations WHERE title = '{user_input}'")
+```
+
+### Rule #2: Input Validation
+
+```python
+# ✅ CORRECT - Validate all user input
+if not title or len(title) > 500:
+    raise ValueError("Invalid title")
+```
+
+### Rule #3: No Sensitive Data
+
+```python
+# ❌ FORBIDDEN
+API_KEY = "sk-abc123..."
+
+# ✅ CORRECT
+API_KEY = os.getenv("OPENAI_API_KEY")
+```
+
+## 🌳 Branch Rules
+
+```bash
+# ❌ FORBIDDEN
+git checkout main
+git push origin main
+
+# ✅ CORRECT
+git checkout develop
+git checkout -b feature/your-feature
+# ... develop ...
+git push origin feature/your-feature
+# Then create PR on GitHub
+```
+
+**Branch Naming:**
+- `feature/<name>` - New features
+- `bugfix/<name>` - Bug fixes
+- `hotfix/v<version>-<name>` - Critical fixes
+
+## 📝 Commit Message Format
+
+```
+<type>(<scope>): <subject>
+
+Types: feat, fix, docs, style, refactor, perf, test, chore
+```
+
+**Examples:**
+```bash
+git commit -m "feat(scraper): add Gemini support"
+git commit -m "fix(search): resolve encoding error"
+git commit -m "test(db): add query validation tests"
+```
+
+## 🧪 Testing Rules
+
+```bash
+# ✅ MUST run before commit
+python -m pytest tests/ -v
+
+# ✅ MUST pass all tests
+# ✅ MUST add tests for new features
+```
+
+## 🚫 Forbidden Operations
+
+1. ❌ Direct push to main/develop
+2. ❌ Skip tests
+3. ❌ SQL string concatenation
+4. ❌ Commit sensitive data (passwords, keys)
+5. ❌ Commit temp files (*.db, __pycache__)
+6. ❌ Ignore test failures
+
+## ✅ Pre-Commit Checklist
+
+- [ ] Not on main/develop branch
+- [ ] Branch name follows convention
+- [ ] All tests pass
+- [ ] SQL uses parameters
+- [ ] No sensitive data
+- [ ] Commit message follows format
+- [ ] Documentation updated
+- [ ] No temp files
+
+## 🆘 Emergency Contacts
+
+- Project Issues: https://github.com/EasyWind001/ChatCompass/issues
+- Full Rules: [.ai-assistant-rules.md](.ai-assistant-rules.md)
+
+---
+
+**Remember: Security first, Quality over Speed!** 🛡️

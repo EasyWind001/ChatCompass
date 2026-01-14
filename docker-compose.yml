@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  # Elasticsearch - 数据存储和搜索
+  elasticsearch:
+    image: elasticsearch:7.17.18
+    container_name: chatcompass-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"  # 限制内存使用为1GB
+      - xpack.security.enabled=false
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+      - ./docker/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - chatcompass-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Ollama - 本地AI服务
+  ollama:
+    image: ollama/ollama:latest
+    container_name: chatcompass-ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - chatcompass-network
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # GPU支持（可选，需要nvidia-docker）
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # ChatCompass应用
+  chatcompass:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chatcompass-app
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    environment:
+      - STORAGE_TYPE=elasticsearch
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=qwen2.5:3b
+      - AI_ENABLED=true
+    volumes:
+      - ./data:/app/data  # 持久化数据目录
+      - ./logs:/app/logs  # 日志目录
+    ports:
+      - "8000:8000"  # Web UI（如果实现了）
+    networks:
+      - chatcompass-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo '等待Elasticsearch就绪...' &&
+        sleep 30 &&
+        echo '初始化Elasticsearch索引...' &&
+        python -c 'from database.es_manager import ESManager; es = ESManager(); es.init_indices()' &&
+        echo '下载Ollama模型（如果不存在）...' &&
+        curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:3b\"}' || true &&
+        sleep 10 &&
+        echo 'ChatCompass启动完成！' &&
+        python main.py
+      "
+
+networks:
+  chatcompass-network:
+    driver: bridge
+
+volumes:
+  es_data:
+    driver: local
+  ollama_data:
+    driver: local

@@ -33,6 +33,7 @@ ENV/
 *.swo
 *~
 .DS_Store
+.codebuddy/
 
 # 环境变量
 .env
@@ -72,12 +73,19 @@ temp/
 cache/
 demo*.py
 debug*.py
-test_*.py
 final_*.py
 verify_*.py
 rebuild*.py
 run_demo.py
-quick_test.py
+
+# 测试文件：只允许在tests/目录下
+# 根目录的测试文件应该被忽略（避免误创建）
+/test_*.py
+/quick_test.py
+
+# 但保留tests/目录下的测试
+!tests/
+!tests/**/*.py
 
 # 测试数据库
 test*.db

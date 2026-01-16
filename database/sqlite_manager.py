@@ -59,11 +59,15 @@ class SQLiteManager(BaseStorage):
         Returns:
             对话数据字典，如果不存在返回None
         """
-        conversation = self.db.get_conversation(int(conv_id))
-        if conversation:
-            # 转换为字典
-            return dict(conversation)
-        return None
+        try:
+            conversation = self.db.get_conversation(int(conv_id))
+            if conversation:
+                # 转换为字典
+                return dict(conversation)
+            return None
+        except (ValueError, TypeError):
+            # 无效的ID格式
+            return None
     
     def update_conversation(self, conv_id: str, updates: Dict[str, Any]) -> bool:
         """

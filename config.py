@@ -101,17 +101,10 @@ def get_storage():
 
 def get_ai_service():
     """根据配置获取AI服务（推荐使用此方法）"""
-    from ai import get_ai_service as _get_ai_service, AIConfig
+    from ai import get_ai_service as _get_ai_service
     
-    # 创建配置
-    config = AIConfig(
-        enabled=(AI_MODE in ['local', 'online', 'hybrid']),
-        backend='ollama' if AI_MODE == 'local' else 'ollama',  # 默认使用ollama
-        ollama_host=OLLAMA_BASE_URL,
-        ollama_model=OLLAMA_MODEL
-    )
-    
-    return _get_ai_service(config)
+    # 返回全局AI服务实例（单例模式）
+    return _get_ai_service()
 
 
 def get_ai_client():

@@ -74,20 +74,15 @@ class ElasticsearchManager(BaseStorage):
     def _create_indices(self):
         """创建Elasticsearch索引和映射"""
         
-        # Conversations索引映射
+        # Conversations索引映射（使用标准分析器，不依赖IK插件）
         conversation_mapping = {
             "settings": {
                 "number_of_shards": 1,
                 "number_of_replicas": 0,
                 "analysis": {
                     "analyzer": {
-                        "ik_smart_analyzer": {
-                            "type": "custom",
-                            "tokenizer": "ik_smart"
-                        },
-                        "ik_max_word_analyzer": {
-                            "type": "custom",
-                            "tokenizer": "ik_max_word"
+                        "default": {
+                            "type": "standard"
                         }
                     }
                 }
@@ -95,10 +90,10 @@ class ElasticsearchManager(BaseStorage):
             "mappings": {
                 "properties": {
                     "conversation_id": {"type": "keyword"},
+                    "source_url": {"type": "keyword"},  # 添加source_url字段
                     "title": {
                         "type": "text",
-                        "analyzer": "ik_max_word_analyzer",
-                        "search_analyzer": "ik_smart_analyzer",
+                        "analyzer": "standard",
                         "fields": {
                             "keyword": {"type": "keyword"}
                         }
@@ -112,28 +107,26 @@ class ElasticsearchManager(BaseStorage):
                     "tags": {"type": "keyword"},
                     "summary": {
                         "type": "text",
-                        "analyzer": "ik_max_word_analyzer",
-                        "search_analyzer": "ik_smart_analyzer"
+                        "analyzer": "standard"
                     },
-                    "category": {"type": "keyword"}
+                    "category": {"type": "keyword"},
+                    "raw_content": {
+                        "type": "text",
+                        "index": False  # 不索引，只存储原始内容
+                    }
                 }
             }
         }
         
-        # Messages索引映射
+        # Messages索引映射（使用标准分析器）
         message_mapping = {
             "settings": {
                 "number_of_shards": 1,
                 "number_of_replicas": 0,
                 "analysis": {
                     "analyzer": {
-                        "ik_smart_analyzer": {
-                            "type": "custom",
-                            "tokenizer": "ik_smart"
-                        },
-                        "ik_max_word_analyzer": {
-                            "type": "custom",
-                            "tokenizer": "ik_max_word"
+                        "default": {
+                            "type": "standard"
                         }
                     }
                 }
@@ -145,8 +138,7 @@ class ElasticsearchManager(BaseStorage):
                     "role": {"type": "keyword"},
                     "content": {
                         "type": "text",
-                        "analyzer": "ik_max_word_analyzer",
-                        "search_analyzer": "ik_smart_analyzer"
+                        "analyzer": "standard"
                     },
                     "create_time": {"type": "date"},
                     "order_index": {"type": "integer"},
@@ -198,12 +190,16 @@ class ElasticsearchManager(BaseStorage):
     
     def save_conversation(self, conversation_id: str, title: str, 
                          platform: str = "chatgpt",
+                         source_url: Optional[str] = None,
+                         raw_content: Optional[str] = None,
                          create_time: Optional[str] = None,
                          **kwargs) -> bool:
         """保存对话"""
         try:
             doc = {
                 "conversation_id": conversation_id,
+                "source_url": source_url or "",  # 添加source_url
+                "raw_content": raw_content or "",  # 添加raw_content
                 "title": title,
                 "platform": platform,
                 "create_time": create_time or datetime.now().isoformat(),
@@ -234,7 +230,16 @@ class ElasticsearchManager(BaseStorage):
         """获取对话详情"""
         try:
             result = self.es.get(index=self.conversation_index, id=conversation_id)
-            return result['_source']
+            conversation = result['_source']
+            conversation['id'] = result['_id']  # 添加ID字段
+            
+            # 统一字段名
+            if 'create_time' in conversation and 'created_at' not in conversation:
+                conversation['created_at'] = conversation['create_time']
+            if 'update_time' in conversation and 'updated_at' not in conversation:
+                conversation['updated_at'] = conversation['update_time']
+            
+            return conversation
         except NotFoundError:
             return None
         except Exception as e:
@@ -271,7 +276,21 @@ class ElasticsearchManager(BaseStorage):
                 }
             )
             
-            return [hit['_source'] for hit in result['hits']['hits']]
+            # 返回时包含文档ID，并统一字段名
+            conversations = []
+            for hit in result['hits']['hits']:
+                conversation = hit['_source']
+                conversation['id'] = hit['_id']  # 添加ID字段
+                
+                # 统一字段名：Elasticsearch使用create_time，但主程序期望created_at
+                if 'create_time' in conversation and 'created_at' not in conversation:
+                    conversation['created_at'] = conversation['create_time']
+                if 'update_time' in conversation and 'updated_at' not in conversation:
+                    conversation['updated_at'] = conversation['update_time']
+                
+                conversations.append(conversation)
+            
+            return conversations
             
         except Exception as e:
             logger.error(f"❌ 列出对话失败: {e}")
@@ -455,9 +474,17 @@ class ElasticsearchManager(BaseStorage):
             conversations = []
             for hit in result['hits']['hits']:
                 conv = hit['_source'].copy()
+                conv['id'] = hit['_id']  # 添加ID字段
                 conv['score'] = hit['_score']
                 conv['search_type'] = 'conversation'
                 conv['highlights'] = hit.get('highlight', {})
+                
+                # 统一字段名
+                if 'create_time' in conv and 'created_at' not in conv:
+                    conv['created_at'] = conv['create_time']
+                if 'update_time' in conv and 'updated_at' not in conv:
+                    conv['updated_at'] = conv['update_time']
+                
                 conversations.append(conv)
             
             return conversations
@@ -718,3 +745,209 @@ class ElasticsearchManager(BaseStorage):
             logger.info("✅ Elasticsearch连接已关闭")
         except Exception as e:
             logger.error(f"❌ 关闭连接失败: {e}")
+    
+    # ==================== BaseStorage抽象方法实现 ====================
+    
+    def connect(self) -> None:
+        """建立连接（已在__init__中实现）"""
+        pass
+    
+    def is_connected(self) -> bool:
+        """检查连接状态"""
+        try:
+            return self.es.ping()
+        except Exception:
+            return False
+    
+    def add_conversation(self,
+                        platform: str,
+                        source_url: str,
+                        title: str,
+                        summary: str,
+                        raw_content: str,
+                        category: Optional[str] = None,
+                        tags: Optional[List[str]] = None) -> int:
+        """添加对话（兼容BaseStorage接口）"""
+        import hashlib
+        import json
+        
+        # 生成conversation_id
+        conversation_id = hashlib.md5(source_url.encode()).hexdigest()
+        
+        # 解析raw_content获取消息
+        try:
+            content_data = json.loads(raw_content)
+            message_count = len(content_data.get('messages', []))
+        except:
+            message_count = 0
+        
+        # 保存对话
+        self.save_conversation(
+            conversation_id=conversation_id,
+            title=title,
+            platform=platform,
+            source_url=source_url,  # 传递source_url
+            raw_content=raw_content,  # 传递raw_content
+            summary=summary,
+            category=category or "",
+            tags=tags or [],
+            message_count=message_count
+        )
+        
+        return int(conversation_id[:8], 16)  # 返回整数ID
+    
+    def get_conversation_by_url(self, url: str) -> Optional[Dict[str, Any]]:
+        """通过URL获取对话"""
+        import hashlib
+        conversation_id = hashlib.md5(url.encode()).hexdigest()
+        return self.get_conversation(conversation_id)
+    
+    def add_tags(self, conversation_id: int, tags: List[str]) -> None:
+        """添加标签"""
+        conv_id = format(conversation_id, 'x').zfill(8)
+        conv = self.get_conversation(conv_id)
+        if conv:
+            existing_tags = set(conv.get('tags', []))
+            existing_tags.update(tags)
+            self.update_conversation(conv_id, tags=list(existing_tags))
+    
+    def remove_tags(self, conversation_id: int, tags: List[str]) -> None:
+        """移除标签"""
+        conv_id = format(conversation_id, 'x').zfill(8)
+        conv = self.get_conversation(conv_id)
+        if conv:
+            existing_tags = set(conv.get('tags', []))
+            existing_tags.difference_update(tags)
+            self.update_conversation(conv_id, tags=list(existing_tags))
+    
+    def get_conversation_tags(self, conversation_id: int) -> List[str]:
+        """获取对话标签"""
+        conv_id = format(conversation_id, 'x').zfill(8)
+        conv = self.get_conversation(conv_id)
+        return conv.get('tags', []) if conv else []
+    
+    def search_conversations(self,
+                            keyword: str,
+                            limit: int = 50,
+                            context_size: int = 100) -> List[Dict[str, Any]]:
+        """全文搜索对话（兼容BaseStorage接口）"""
+        return self.search(query=keyword, search_type="full", limit=limit)
+    
+    def advanced_search(self,
+                       keyword: Optional[str] = None,
+                       platform: Optional[str] = None,
+                       category: Optional[str] = None,
+                       tags: Optional[List[str]] = None,
+                       date_from: Optional[datetime] = None,
+                       date_to: Optional[datetime] = None,
+                       limit: int = 50) -> List[Dict[str, Any]]:
+        """高级搜索"""
+        try:
+            must_clauses = []
+            
+            if keyword:
+                must_clauses.append({
+                    "multi_match": {
+                        "query": keyword,
+                        "fields": ["title^3", "summary^2", "category", "tags"]
+                    }
+                })
+            
+            if platform:
+                must_clauses.append({"term": {"platform": platform}})
+            
+            if category:
+                must_clauses.append({"term": {"category": category}})
+            
+            if tags:
+                must_clauses.append({"terms": {"tags": tags}})
+            
+            if date_from or date_to:
+                range_query = {"range": {"create_time": {}}}
+                if date_from:
+                    range_query["range"]["create_time"]["gte"] = date_from.isoformat()
+                if date_to:
+                    range_query["range"]["create_time"]["lte"] = date_to.isoformat()
+                must_clauses.append(range_query)
+            
+            query = {"bool": {"must": must_clauses}} if must_clauses else {"match_all": {}}
+            
+            result = self.es.search(
+                index=self.conversation_index,
+                body={
+                    "query": query,
+                    "size": limit,
+                    "sort": [{"create_time": {"order": "desc"}}]
+                }
+            )
+            
+            return [hit['_source'] for hit in result['hits']['hits']]
+            
+        except Exception as e:
+            logger.error(f"❌ 高级搜索失败: {e}")
+            return []
+    
+    def optimize(self) -> None:
+        """优化存储（强制刷新和合并）"""
+        try:
+            for index in [self.conversation_index, self.message_index, self.tag_index]:
+                self.es.indices.refresh(index=index)
+                self.es.indices.forcemerge(index=index, max_num_segments=1)
+            logger.info("✅ 索引优化完成")
+        except Exception as e:
+            logger.error(f"❌ 索引优化失败: {e}")
+    
+    def backup(self, backup_path: str) -> bool:
+        """备份数据（导出为JSON）"""
+        import json
+        try:
+            data = {
+                'conversations': self.list_conversations(limit=10000),
+                'tags': self.get_all_tags()
+            }
+            
+            with open(backup_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            
+            logger.info(f"✅ 数据已备份到: {backup_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ 备份失败: {e}")
+            return False
+    
+    def export_data(self, export_format: str = 'json') -> str:
+        """导出数据"""
+        import json
+        try:
+            data = {
+                'conversations': self.list_conversations(limit=10000),
+                'tags': self.get_all_tags()
+            }
+            return json.dumps(data, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"❌ 导出失败: {e}")
+            return "{}"
+    
+    def import_data(self, data: str, data_format: str = 'json') -> int:
+        """导入数据"""
+        import json
+        try:
+            data_dict = json.loads(data)
+            count = 0
+            
+            # 导入对话
+            for conv in data_dict.get('conversations', []):
+                if self.save_conversation(**conv):
+                    count += 1
+            
+            # 导入标签
+            for tag in data_dict.get('tags', []):
+                self.save_tag(**tag)
+            
+            logger.info(f"✅ 导入完成: {count}个对话")
+            return count
+            
+        except Exception as e:
+            logger.error(f"❌ 导入失败: {e}")
+            return 0

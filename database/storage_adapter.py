@@ -54,7 +54,7 @@ class StorageAdapter:
             'source_url': source_url,
             'platform': platform,
             'title': title,
-            'raw_content': json.dumps(raw_content, ensure_ascii=False) if isinstance(raw_content, dict) else raw_content,
+            'raw_content': raw_content,  # Keep as dict for SQLite, will be converted by db_manager
             'summary': summary,
             'category': category,
             'tags': tags or [],
@@ -68,11 +68,31 @@ class StorageAdapter:
             conversation['message_count'] = len(messages)
             conversation['word_count'] = sum(len(msg.get('content', '')) for msg in messages)
         
-        return self.storage.add_conversation(conversation)
+        # 调用底层存储的add_conversation方法
+        # 注意：SQLiteManager接受字典，ElasticsearchManager接受关键字参数
+        if self._storage_type == 'SQLiteManager':
+            # SQLiteManager expects a dict, raw_content should be dict (db_manager will convert to JSON)
+            return self.storage.add_conversation(conversation)
+        else:
+            # ElasticsearchManager expects keyword arguments, raw_content as JSON string
+            raw_content_json = json.dumps(raw_content, ensure_ascii=False) if isinstance(raw_content, dict) else raw_content
+            return self.storage.add_conversation(
+                platform=platform,
+                source_url=source_url,
+                title=title,
+                summary=summary or '',
+                raw_content=raw_content_json,
+                category=category,
+                tags=tags
+            )
     
     def get_conversation(self, conv_id: str) -> Optional[Dict[str, Any]]:
         """获取单个对话"""
         return self.storage.get_conversation(conv_id)
+    
+    def get_conversation_by_url(self, url: str) -> Optional[Dict[str, Any]]:
+        """通过URL获取对话"""
+        return self.storage.get_conversation_by_url(url)
     
     def get_all_conversations(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """获取所有对话"""

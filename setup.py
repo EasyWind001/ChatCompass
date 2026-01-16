@@ -8,10 +8,10 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="chatcompass",
-    version="0.1.0",
-    author="Your Name",
-    author_email="your.email@example.com",
-    description="AI对话知识库管理系统",
+    version="1.2.6",
+    author="ChatCompass Team",
+    author_email="chatcompass@example.com",
+    description="AI对话知识库管理系统 - 支持多平台对话管理、智能搜索、本地存储",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/ChatCompass",

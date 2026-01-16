@@ -26,8 +26,9 @@ class AIConfig:
     backend: str = "ollama"  # ollama, openai, deepseek
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:3b"
-    timeout: int = 60
+    timeout: int = 180  # 增加到180秒处理大文本
     auto_analyze: bool = False  # 是否自动分析新对话
+    enable_fallback: bool = True  # 超时时是否启用降级方案
     
     @classmethod
     def from_env(cls) -> 'AIConfig':
@@ -37,8 +38,9 @@ class AIConfig:
             backend=os.getenv('AI_BACKEND', 'ollama'),
             ollama_host=os.getenv('OLLAMA_HOST', 'http://localhost:11434'),
             ollama_model=os.getenv('OLLAMA_MODEL', 'qwen2.5:3b'),
-            timeout=int(os.getenv('AI_TIMEOUT', '60')),
-            auto_analyze=os.getenv('AI_AUTO_ANALYZE', 'false').lower() == 'true'
+            timeout=int(os.getenv('AI_TIMEOUT', '180')),  # 默认180秒
+            auto_analyze=os.getenv('AI_AUTO_ANALYZE', 'false').lower() == 'true',
+            enable_fallback=os.getenv('AI_ENABLE_FALLBACK', 'true').lower() == 'true'
         )
 
 
@@ -135,13 +137,15 @@ class AIService:
     
     def analyze_conversation(self, 
                             conversation_text: str,
-                            title: str = "") -> Optional[AIAnalysisResult]:
+                            title: str = "",
+                            show_progress: bool = True) -> Optional[AIAnalysisResult]:
         """
         分析对话内容
         
         Args:
             conversation_text: 对话文本
             title: 对话标题（可选）
+            show_progress: 是否显示处理进度（推荐大文本时开启）
         
         Returns:
             AIAnalysisResult对象，失败返回None
@@ -155,24 +159,46 @@ class AIService:
             return None
         
         try:
-            logger.info(f"开始分析对话{f': {title}' if title else ''}...")
+            text_length = len(conversation_text)
+            title_info = f': {title}' if title else ''
+            
+            logger.info(f"🚀 开始分析对话{title_info}（{text_length:,} 字符）")
+            
+            # 大文本提示
+            if text_length > 10000:
+                logger.info(f"💡 检测到大文本，预计处理时间: {text_length//1000 * 2}-{text_length//1000 * 5}秒")
             
             # 调用AI分析
             result = self.client.analyze_conversation(conversation_text)
             
             logger.info(f"✅ 分析完成: {result.category} | 置信度: {result.confidence}")
-            logger.debug(f"   摘要: {result.summary[:50]}...")
-            logger.debug(f"   标签: {', '.join(result.tags)}")
+            logger.info(f"   📝 摘要: {result.summary[:80]}{'...' if len(result.summary) > 80 else ''}")
+            logger.info(f"   🏷️  标签: {', '.join(result.tags)}")
             
             return result
         
         except TimeoutError as e:
             logger.error(f"❌ 分析超时: {e}")
-            return None
+            logger.error(f"💡 建议: 1) 增加AI_TIMEOUT环境变量 2) 使用分段处理 3) 切换到更快的模型")
+            
+            # 降级方案：生成基础摘要
+            if self.config.enable_fallback:
+                logger.info("🔄 启动降级方案：生成基础摘要（基于规则）...")
+                return self._fallback_analysis(conversation_text, title)
+            else:
+                logger.warning("⚠️  降级方案已禁用，返回None")
+                return None
         
         except Exception as e:
             logger.error(f"❌ 分析失败: {e}")
-            return None
+            
+            # 降级方案：生成基础摘要
+            if self.config.enable_fallback:
+                logger.info("🔄 启动降级方案：生成基础摘要（基于规则）...")
+                return self._fallback_analysis(conversation_text, title)
+            else:
+                logger.warning("⚠️  降级方案已禁用，返回None")
+                return None
     
     def generate_summary(self, 
                         conversation_text: str,
@@ -305,6 +331,146 @@ class AIService:
         except Exception as e:
             logger.error(f"❌ 模型下载失败: {e}")
             return False
+    
+    def _fallback_analysis(self, 
+                           conversation_text: str,
+                           title: str = "") -> Optional[AIAnalysisResult]:
+        """
+        降级分析方案（当AI分析失败或超时时）
+        
+        使用规则提取而非AI模型：
+        1. 提取前150字作为摘要
+        2. 基于关键词进行简单分类
+        3. 提取高频词作为标签
+        
+        Args:
+            conversation_text: 对话文本
+            title: 对话标题
+        
+        Returns:
+            AIAnalysisResult对象
+        """
+        try:
+            from collections import Counter
+            import re
+            
+            # 1. 生成简单摘要（取前150字 + 标题）
+            summary = title if title else ""
+            if not summary or len(summary) < 20:
+                # 提取第一条用户消息
+                first_msg = conversation_text.split('\n\n')[0] if '\n\n' in conversation_text else conversation_text
+                summary = first_msg[:150]
+            
+            # 清理摘要
+            summary = summary.strip()
+            if len(summary) > 150:
+                summary = summary[:147] + "..."
+            
+            # 2. 基于关键词的简单分类
+            category = self._simple_categorize(conversation_text)
+            
+            # 3. 提取高频词作为标签
+            tags = self._extract_simple_tags(conversation_text)
+            
+            logger.info(f"✅ 降级分析完成: {category} | 标签: {', '.join(tags)}")
+            
+            return AIAnalysisResult(
+                summary=summary or "无法生成摘要",
+                category=category,
+                tags=tags,
+                confidence=0.3  # 降低置信度，表明是降级方案
+            )
+        
+        except Exception as e:
+            logger.error(f"❌ 降级分析也失败: {e}")
+            # 返回最基础的结果
+            return AIAnalysisResult(
+                summary=title[:100] if title else "对话内容",
+                category="其他",
+                tags=["未分类"],
+                confidence=0.1
+            )
+    
+    def _simple_categorize(self, text: str) -> str:
+        """基于关键词的简单分类"""
+        text_lower = text.lower()
+        
+        # 编程相关关键词
+        if any(kw in text_lower for kw in [
+            'python', 'java', 'javascript', 'code', 'function', 'class',
+            'api', 'bug', 'debug', 'git', 'docker', 'database', '代码',
+            '编程', '函数', '算法', 'sql', 'react', 'vue', 'node'
+        ]):
+            return "编程"
+        
+        # 写作相关
+        if any(kw in text_lower for kw in [
+            '写作', '文案', '文章', '润色', '修改', '优化',
+            'write', 'article', 'essay', 'blog', '博客'
+        ]):
+            return "写作"
+        
+        # 学习相关
+        if any(kw in text_lower for kw in [
+            '学习', '教程', '如何', '怎么', '什么是', '解释',
+            'learn', 'tutorial', 'how to', 'what is', 'explain'
+        ]):
+            return "学习"
+        
+        # 策划相关
+        if any(kw in text_lower for kw in [
+            '方案', '计划', '策划', '活动', '营销', '推广',
+            'plan', 'strategy', 'marketing', 'campaign'
+        ]):
+            return "策划"
+        
+        # 休闲娱乐
+        if any(kw in text_lower for kw in [
+            '游戏', '电影', '音乐', '小说', '故事', '聊天',
+            'game', 'movie', 'music', 'story', 'chat'
+        ]):
+            return "休闲娱乐"
+        
+        return "其他"
+    
+    def _extract_simple_tags(self, text: str, max_tags: int = 5) -> List[str]:
+        """提取简单标签（基于高频词）"""
+        import re
+        from collections import Counter
+        
+        # 分词（简单的空格和标点分隔）
+        words = re.findall(r'[\w]+', text.lower())
+        
+        # 过滤停用词和短词
+        stop_words = {
+            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+            'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'be',
+            'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
+            'would', 'should', 'could', 'may', 'might', 'must', 'can',
+            '的', '了', '是', '在', '和', '有', '我', '你', '他', '她', '它',
+            '这', '那', '个', '们', '吗', '呢', '啊', '哦', '嗯'
+        }
+        
+        # 过滤和统计
+        words = [w for w in words if len(w) > 2 and w not in stop_words]
+        word_freq = Counter(words)
+        
+        # 获取高频词
+        common_words = word_freq.most_common(max_tags * 2)
+        
+        # 提取前N个作为标签（避免过于通用的词）
+        tags = []
+        for word, freq in common_words:
+            if freq > 1 and word not in {'user', 'assistant', 'message', 'conversation'}:
+                tags.append(word)
+            if len(tags) >= max_tags:
+                break
+        
+        # 如果标签太少，补充一些默认标签
+        if len(tags) < 2:
+            tags.append("对话")
+        
+        return tags[:max_tags]
     
     def test_connection(self) -> Dict[str, Any]:
         """

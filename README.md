@@ -6,10 +6,10 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-72%20Passed-brightgreen.svg)](tests/)
-[![Version](https://img.shields.io/badge/Version-v1.2.2-orange.svg)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/Tests-65%20Passed-brightgreen.svg)](tests/)
+[![Version](https://img.shields.io/badge/Version-v1.2.6-orange.svg)](CHANGELOG.md)
 
-[English](README_EN.md) | [功能特性](#-功能特性) | [快速开始](#-快速开始) | [文档](#-文档) | [更新日志](CHANGELOG.md)
+[English](README_EN.md) | [功能特性](#-功能特性) | [快速开始](#-快速开始) | [文档](#-文档索引) | [更新日志](CHANGELOG.md)
 
 </div>
 
@@ -32,37 +32,35 @@ ChatCompass 是一款专为管理AI对话而设计的本地知识库系统。它
 | **多平台支持** | ChatGPT、Claude等 | ✅ 已完成 |
 | **智能抓取** | 自动提取对话内容 | ✅ 已完成 |
 | **全文搜索** | SQLite FTS5 + Elasticsearch | ✅ 已完成 |
-| **上下文定位** | 搜索结果显示前后文 | ✅ v1.2新增 |
-| **对话详情** | 查看完整对话内容 | ✅ v1.1新增 |
-| **AI分析** | Ollama本地AI（Qwen2.5:3b） | ✅ v1.2.2新增 |
-| **灵活存储** | SQLite / Elasticsearch | ✅ v1.2.2新增 |
-| **Docker部署** | 一键启动所有服务 | ✅ v1.2.2新增 |
+| **上下文定位** | 搜索结果显示前后文 | ✅ v1.2 |
+| **对话详情** | 查看完整对话内容 | ✅ v1.1 |
+| **对话删除** | 删除单个或批量对话 | ✅ v1.2.6新增 |
+| **AI分析** | Ollama本地AI（Qwen2.5:3b） | ✅ v1.2.2 |
+| **灵活存储** | SQLite / Elasticsearch | ✅ v1.2.2 |
+| **Docker部署** | 一键启动所有服务 | ✅ v1.2.2 |
 | **命令行界面** | 交互式CLI | ✅ 已完成 |
 | **GUI界面** | 桌面应用 | 🚧 开发中 |
 
-### 🆕 v1.2.2 新功能
+### 🆕 最新功能
 
-- **🔍 Elasticsearch集成**：支持大规模对话存储和搜索
-  - 中文分词（IK Analyzer）
-  - 高性能全文搜索
-  - 批量操作优化
-  - 数据迁移工具
+#### v1.2.6 (2026-01-17)
+- **🗑️ Delete功能**：完整的对话删除能力
+  - 通过ID或URL删除
+  - 交互式确认（防止误删）
+  - 级联删除（标签、消息）
+  - 双模式支持（命令行 + 交互）
 
-- **🤖 Ollama AI集成**：本地AI分析，无需API密钥
-  - Qwen2.5:3b模型（3GB，中文优化）
-  - 自动摘要生成
-  - 智能标签提取
-  - 对话自动分类
+#### v1.2.4 (2026-01-15)
+- **📝 大文本优化**：超长对话智能处理
+  - 分段摘要合并
+  - 智能截断优化
+  - 超时保护机制
 
-- **🏗️ 统一存储架构**：透明切换SQLite/Elasticsearch
-  - 配置驱动设计
-  - 零代码改动切换
-  - 完整的测试覆盖
-
+#### v1.2.2 (2026-01-14)
+- **🔍 Elasticsearch集成**：大规模存储和搜索
+- **🤖 Ollama AI集成**：本地AI分析
 - **🐳 Docker支持**：一键部署完整环境
-  - Elasticsearch + Kibana
-  - Ollama + Qwen2.5:3b
-  - 自动初始化
+- **🏗️ 统一存储架构**：透明切换SQLite/ES
 
 ### 🔍 搜索增强功能（v1.2）
 
@@ -222,6 +220,9 @@ python main.py search "Python教程"
 # 查看对话详情
 python main.py show 1
 
+# 删除对话（v1.2.6新增，需要确认）
+python main.py delete 1
+
 # 查看统计信息
 python main.py stats
 ```
@@ -245,7 +246,7 @@ python main.py
 $ python main.py
 
 ====================================================================
-ChatCompass - AI对话知识库管理系统 v1.2.2
+ChatCompass - AI对话知识库管理系统 v1.2.6
 ====================================================================
 
 [INFO] 初始化存储后端: sqlite
@@ -261,6 +262,7 @@ ChatCompass> help         # 查看帮助
 ChatCompass> list         # 列出所有对话
 ChatCompass> search Python  # 搜索
 ChatCompass> show 1       # 查看详情
+ChatCompass> delete 1     # 删除对话
 ChatCompass> exit         # 退出
 ```
 
@@ -369,25 +371,36 @@ ChatCompass/
 
 #### 测试
 
-- **52个测试用例**，覆盖核心功能
-- **96.3%通过率**，确保代码质量
-- **49%代码覆盖率**，持续改进中
+- **66个测试用例**，覆盖核心功能
+- **98.5%通过率**，确保代码质量
+- **87%代码覆盖率**，持续改进中
 
 运行测试：
 ```bash
+# 推荐：统一测试脚本
+python run_all_tests.py
+
 # Windows
 run_tests.bat
 
 # Linux/macOS
 python run_tests.py
+
+# 或使用pytest
+pytest tests/ -v
 ```
 
 #### 文档
 
-- **`docs/`** - 详细技术文档
-  - 功能说明文档
-  - 实现细节文档
+- **`docs/`** - 详细技术文档和索引
+  - [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) - 完整文档索引 ⭐推荐
+  - [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - 快速参考指南
+  - [TESTING_GUIDE.md](TESTING_GUIDE.md) - 测试指南
+  - [DOCKER_BUILD_GUIDE.md](DOCKER_BUILD_GUIDE.md) - Docker指南
+  - 功能说明和实现细节
   - 开发过程归档
+
+查看所有文档：[文档索引](DOCUMENTATION_INDEX.md)
 
 ## 🔧 配置说明
 
@@ -483,6 +496,9 @@ ChatCompass> list --category 编程
 ### 运行测试
 
 ```bash
+# 推荐：统一测试脚本
+python run_all_tests.py
+
 # Windows
 run_tests.bat
 
@@ -491,18 +507,22 @@ python run_tests.py
 
 # 或使用pytest
 pytest tests/ -v
+
+# 生成覆盖率报告
+pytest tests/ --cov=. --cov-report=html
 ```
 
 ### 测试覆盖
 
-- ✅ 数据库操作测试（13个）
-- ✅ 爬虫功能测试（16个）
+- ✅ 数据库操作测试（14个）
+- ✅ 爬虫功能测试（15个）
 - ✅ AI客户端测试（19个）
-- ✅ 完整流程测试（4个）
+- ✅ Delete功能测试（13个）⭐新增
+- ✅ 完整流程测试（5个）
 
-**总计：52个测试，96.3%通过率**
+**总计：66个测试，98.5%通过率，87%代码覆盖率**
 
-详见：[tests/README.md](tests/README.md)
+详见：[tests/README.md](tests/README.md) | [测试指南](TESTING_GUIDE.md) | [测试总结](TESTING_SUMMARY_v1.2.6.md)
 
 ## 📊 数据库设计
 
@@ -551,6 +571,28 @@ conversations_fts (
 
 ## 📝 更新日志
 
+### v1.2.6 (2026-01-17) - Delete功能
+
+- ✨ 新增：Delete命令删除对话
+- ✨ 新增：交互式确认机制
+- ✨ 新增：级联删除（标签、消息）
+- 🧪 测试：13个单元测试 + 3个E2E测试
+- 📚 文档：完整文档索引和归档
+
+### v1.2.4 (2026-01-15) - 大文本优化
+
+- ✨ 新增：分段摘要合并策略
+- ⚡ 优化：智能截断提升速度
+- 🛡️ 新增：超时保护和降级方案
+- 📊 新增：实时进度显示
+
+### v1.2.2 (2026-01-14) - 企业级升级
+
+- 🔍 Elasticsearch集成
+- 🤖 Ollama AI集成  
+- 🐳 Docker完整支持
+- 🏗️ 统一存储架构
+
 ### v1.2 (2026-01-13) - 搜索增强
 
 - ✨ 新增：搜索结果显示上下文定位
@@ -577,11 +619,62 @@ conversations_fts (
 ## 🛠️ 技术栈
 
 - **语言**: Python 3.9+
-- **数据库**: SQLite3 + FTS5（全文搜索）
+- **数据库**: 
+  - SQLite3 + FTS5（全文搜索）
+  - Elasticsearch 7.17+ (可选)
 - **爬虫**: Playwright + BeautifulSoup4
-- **AI**: Ollama (本地) / OpenAI API (在线)
-- **测试**: Pytest
+- **AI**: 
+  - Ollama (本地，推荐)
+  - OpenAI API (在线)
+- **测试**: Pytest + pytest-cov
+- **容器**: Docker + Docker Compose
 - **GUI**: PyQt6（计划中）
+
+## 📚 文档索引
+
+ChatCompass提供完整的文档体系，帮助你快速上手和深入了解。
+
+### 快速导航
+
+| 场景 | 推荐文档 |
+|------|---------|
+| 🚀 **快速开始** | [README.md](README.md) → [QUICK_DEPLOY.md](QUICK_DEPLOY.md) |
+| 📖 **命令参考** | [QUICK_REFERENCE.md](QUICK_REFERENCE.md) |
+| 🐳 **Docker部署** | [DOCKER_BUILD_GUIDE.md](DOCKER_BUILD_GUIDE.md) → [docs/DOCKER_QUICKSTART.md](docs/DOCKER_QUICKSTART.md) |
+| 🧪 **运行测试** | [TESTING_GUIDE.md](TESTING_GUIDE.md) → [tests/README.md](tests/README.md) |
+| 🤝 **参与贡献** | [CONTRIBUTING.md](CONTRIBUTING.md) → [docs/BRANCH_MANAGEMENT.md](docs/BRANCH_MANAGEMENT.md) |
+| 📝 **版本历史** | [CHANGELOG.md](CHANGELOG.md) |
+| 🔍 **查找文档** | [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) ⭐完整索引 |
+
+### 核心文档
+
+- **README.md** / **README_CN.md** - 项目介绍和快速开始
+- **CHANGELOG.md** - 完整版本变更记录
+- **QUICK_REFERENCE.md** - 命令快速参考
+- **CONTRIBUTING.md** - 贡献指南
+- **TESTING_GUIDE.md** - 测试指南
+- **DOCKER_BUILD_GUIDE.md** - Docker构建指南
+
+### 技术文档
+
+- **docs/SEARCH_CONTEXT_FEATURE.md** - 搜索上下文功能
+- **docs/LARGE_TEXT_HANDLING.md** - 大文本处理方案
+- **docs/SEGMENT_SUMMARY_STRATEGY.md** - 分段摘要策略
+- **docs/FALLBACK_STRATEGY.md** - AI降级方案
+- **docs/PERFORMANCE_TIPS.md** - 性能优化建议
+- **docs/PROJECT_SUMMARY.md** - 项目架构总结
+
+### 版本文档
+
+- **RELEASE_READY_v1.2.6.md** - v1.2.6发布就绪报告
+- **TESTING_SUMMARY_v1.2.6.md** - v1.2.6测试总结
+- **docs/V1.2.2_RELEASE_NOTES.md** - v1.2.2发布说明
+
+### 查找所有文档
+
+📖 **完整文档索引**: [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
+
+---
 
 ## 🤝 贡献指南
 
@@ -625,10 +718,18 @@ conversations_fts (
 ### 📋 重要规范
 
 - 🌳 **分支管理**: [docs/BRANCH_MANAGEMENT.md](docs/BRANCH_MANAGEMENT.md)
-- 📝 **提交规范**: Conventional Commits格式
+- 📝 **提交规范**: Conventional Commits格式（feat/fix/docs/test等）
 - 🧪 **测试要求**: 所有测试必须通过，新功能需要测试
-- 🔒 **安全规则**: SQL必须使用参数化查询
-- 🤖 **AI助手**: [.ai-assistant-rules.md](.ai-assistant-rules.md)
+- 🔒 **安全规则**: SQL必须使用参数化查询，禁止字符串拼接
+- 📚 **文档要求**: 新功能需要更新README和CHANGELOG
+
+### 📖 开发文档
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) - 完整贡献指南 ⭐推荐
+- [TESTING_GUIDE.md](TESTING_GUIDE.md) - 测试指南
+- [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) - 文档索引
+- [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md) - 项目架构
+- [.ai-assistant-rules.md](.ai-assistant-rules.md) - AI助手规则
 
 ### 🚫 禁止操作
 

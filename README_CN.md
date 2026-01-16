@@ -6,7 +6,8 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-52%20通过-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-65%20通过-brightgreen.svg)](tests/)
+[![Version](https://img.shields.io/badge/Version-v1.2.6-orange.svg)](CHANGELOG.md)
 
 [English](README.md) | 简体中文
 
@@ -168,6 +169,24 @@ python main.py show 1
 
 # 交互模式
 ChatCompass> show 1
+```
+
+#### 删除对话（v1.2.6新增）
+```bash
+# 通过ID删除
+python main.py delete 1
+
+# 通过URL删除
+python main.py delete "https://chatgpt.com/share/xxxxx"
+
+# 交互模式（需要确认）
+ChatCompass> delete 1
+⚠️  确认删除对话
+ID: 1
+标题: Python编程基础
+...
+确定删除吗？(yes/no): yes
+✅ 删除成功
 ```
 
 #### 查看统计
@@ -353,6 +372,88 @@ python main.py stats
 # 按标签检索
 python main.py search tag:Python
 ```
+
+## 📊 大文本处理优化
+
+ChatCompass对大文本对话（如3万+字符）进行了专门优化：
+
+### 优化策略
+
+1. **🔀 分段摘要合并**（核心策略）：超长对话按轮次智能分段，每段生成摘要后合并，保留100%关键信息
+2. **⚡ 智能截断**：中等长度文本保留开头70% + 结尾30%，提升速度2-3倍
+3. **📊 实时进度**：显示分段数、当前进度、预估时间
+4. **⏱️ 超时保护**：默认180秒超时，可根据文本大小调整
+5. **🌊 流式输出**：大文本显示生成进度，避免"假死"
+6. **🛡️ 降级方案**：极端情况下使用基于规则的分析兜底
+
+### 使用示例
+
+```bash
+# 自动应用所有优化
+$ python main.py add "https://chatgpt.com/share/xxx"
+
+[ChatGPT] 🌐 使用Playwright抓取
+[ChatGPT] ✅ 成功提取 45 条消息（共 28,500 字符）
+📊 开始分析对话（28,500 字符）...
+💡 检测到超长文本，启用分段摘要策略...
+📦 已分为 5 段（每段约 5,700 字符）
+
+🔍 正在分析第 1/5 段...
+  ✅ 第 1 段摘要: 用户询问Docker部署问题...
+🔍 正在分析第 2/5 段...
+  ✅ 第 2 段摘要: 讨论了多阶段构建优化...
+[...]
+🔗 合并 5 个分段摘要...
+🎯 生成最终分析结果...
+✅ 分段分析完成
+
+✅ 对话已保存（ID: 123）
+   📝 摘要: 用户系统学习Docker优化，从镜像构建到部署实践...
+   📁 分类: 编程
+   🏷️  标签: docker, 部署, 优化, devops
+   ⭐ 置信度: 0.89
+```
+
+### 配置优化
+
+```bash
+# .env 文件
+# 调整超时时间（秒）
+AI_TIMEOUT=300  # 超大文本用300秒
+
+# 或使用环境变量
+export AI_TIMEOUT=300
+```
+
+详见：
+- [分段摘要策略](docs/SEGMENT_SUMMARY_STRATEGY.md) ⭐ 推荐
+- [大文本处理指南](docs/LARGE_TEXT_HANDLING.md)
+
+### 超时保护 & 降级方案
+
+**智能容错机制**：即使AI超时或失败，对话依然能保存！
+
+```bash
+# 场景：AI分析超时
+❌ 分析超时: Ollama请求超时（180秒）
+🔄 启动降级方案：生成基础摘要（基于规则）...
+✅ 降级分析完成: 编程 | 标签: docker, python
+
+✅ 对话已保存（ID: 123）
+   📝 摘要: 用户询问Docker部署问题...（降级）
+   📁 分类: 编程
+   🏷️  标签: docker, python, 部署
+   ⚠️  置信度: 0.3（基于规则）
+```
+
+**配置**：
+```bash
+# .env
+AI_TIMEOUT=180              # 超时时间
+AI_ENABLE_FALLBACK=true     # 启用降级方案（推荐）
+```
+
+详见：[AI降级方案](docs/FALLBACK_STRATEGY.md)
 
 ## 🧪 测试
 

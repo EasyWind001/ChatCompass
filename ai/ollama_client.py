@@ -23,14 +23,14 @@ class OllamaClient:
     def __init__(self, 
                  base_url: str = None,
                  model: str = None,
-                 timeout: int = 60):
+                 timeout: int = 180):  # 增加到180秒
         """
         初始化Ollama客户端
         
         Args:
             base_url: Ollama服务地址（默认从环境变量OLLAMA_HOST读取）
             model: 使用的模型名称（默认从环境变量OLLAMA_MODEL读取，推荐qwen2.5:3b）
-            timeout: 请求超时时间（秒）
+            timeout: 请求超时时间（秒），默认180秒用于处理大文本
         """
         import os
         
@@ -58,21 +58,25 @@ class OllamaClient:
             pass
         return []
     
-    def generate(self, prompt: str, system_prompt: str = None) -> str:
+    def generate(self, prompt: str, system_prompt: str = None, show_progress: bool = False) -> str:
         """
         调用Ollama生成文本
         
         Args:
             prompt: 用户提示词
             system_prompt: 系统提示词
+            show_progress: 是否显示流式进度（用于大文本）
         
         Returns:
             生成的文本
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         payload = {
             "model": self.model,
             "prompt": prompt,
-            "stream": False,
+            "stream": show_progress,  # 大文本时使用流式输出
             "options": {
                 "temperature": 0.3,  # 降低随机性，提高稳定性
                 "top_p": 0.9,
@@ -83,18 +87,51 @@ class OllamaClient:
             payload["system"] = system_prompt
         
         try:
-            response = requests.post(
-                self.api_url,
-                json=payload,
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-            
-            result = response.json()
-            return result.get('response', '').strip()
+            if show_progress:
+                # 流式响应（显示进度）
+                import sys
+                response = requests.post(
+                    self.api_url,
+                    json=payload,
+                    timeout=self.timeout,
+                    stream=True
+                )
+                response.raise_for_status()
+                
+                full_response = ""
+                logger.info("⏳ 正在生成回复...")
+                
+                for line in response.iter_lines():
+                    if line:
+                        data = json.loads(line)
+                        chunk = data.get('response', '')
+                        full_response += chunk
+                        
+                        # 显示进度点
+                        if data.get('done'):
+                            logger.info("✅ 生成完成")
+                        else:
+                            # 每10个字符显示一个进度点
+                            if len(full_response) % 10 == 0:
+                                sys.stderr.write('.')
+                                sys.stderr.flush()
+                
+                sys.stderr.write('\n')
+                return full_response.strip()
+            else:
+                # 非流式响应
+                response = requests.post(
+                    self.api_url,
+                    json=payload,
+                    timeout=self.timeout
+                )
+                response.raise_for_status()
+                
+                result = response.json()
+                return result.get('response', '').strip()
             
         except requests.Timeout:
-            raise TimeoutError(f"Ollama请求超时（{self.timeout}秒）")
+            raise TimeoutError(f"Ollama请求超时（{self.timeout}秒），建议分批处理或增加超时时间")
         except requests.RequestException as e:
             raise RuntimeError(f"Ollama请求失败: {str(e)}")
     
@@ -102,26 +139,200 @@ class OllamaClient:
         """
         分析对话内容，生成摘要、分类和标签
         
+        使用分段摘要合并策略处理长文本：
+        1. 检测到超长文本时，按对话轮次分段
+        2. 对每段生成摘要（并行处理）
+        3. 合并所有摘要再生成最终结果
+        
         Args:
             conversation_text: 完整对话文本
         
         Returns:
             AIAnalysisResult对象
         """
-        # 限制输入长度（避免超过模型上下文窗口）
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # 显示处理提示
+        text_length = len(conversation_text)
+        logger.info(f"📊 开始分析对话（{text_length:,} 字符）...")
+        
+        # 分段摘要策略：超过阈值时使用
+        segment_threshold = 12000  # 12000字符开始分段
+        max_segment_length = 6000  # 每段最多6000字符
+        
+        if text_length >= segment_threshold:
+            logger.info(f"💡 检测到超长文本，启用分段摘要策略...")
+            return self._analyze_with_segments(conversation_text)
+        else:
+            # 短文本直接分析
+            return self._analyze_direct(conversation_text)
+    
+    def _analyze_direct(self, conversation_text: str) -> AIAnalysisResult:
+        """直接分析（短文本）"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # 如果仍然超过8000字符，做简单截断
         max_length = 8000
         if len(conversation_text) > max_length:
-            conversation_text = conversation_text[:max_length] + "\n...(内容过长已截断)"
+            logger.warning(f"⚠️  文本超过{max_length}字符，截取关键部分（前70%+后30%）")
+            head_length = int(max_length * 0.7)
+            tail_length = int(max_length * 0.3)
+            conversation_text = (
+                conversation_text[:head_length] + 
+                "\n\n...[中间内容已省略]...\n\n" +
+                conversation_text[-tail_length:]
+            )
         
         # 构建提示词
+        logger.info("🔄 正在调用AI模型...")
         prompt = self._build_analysis_prompt(conversation_text)
         system_prompt = "你是一个专业的AI对话分析助手，擅长提取关键信息、生成摘要和分类。"
         
         # 调用模型
         response = self.generate(prompt, system_prompt)
         
+        logger.info("✅ AI分析完成，正在解析结果...")
+        
         # 解析结果
         return self._parse_analysis_result(response)
+    
+    def _analyze_with_segments(self, conversation_text: str) -> AIAnalysisResult:
+        """分段分析（超长文本）"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # 步骤1：智能分段（按对话轮次）
+        segments = self._split_into_segments(conversation_text)
+        logger.info(f"📦 已分为 {len(segments)} 段（每段约 {len(conversation_text)//len(segments):,} 字符）")
+        
+        # 步骤2：对每段生成摘要
+        segment_summaries = []
+        for i, segment in enumerate(segments, 1):
+            logger.info(f"🔍 正在分析第 {i}/{len(segments)} 段...")
+            summary = self._summarize_segment(segment, i)
+            segment_summaries.append(summary)
+            logger.info(f"  ✅ 第 {i} 段摘要: {summary[:60]}...")
+        
+        # 步骤3：合并摘要
+        logger.info(f"🔗 合并 {len(segment_summaries)} 个分段摘要...")
+        combined_summary = "\n\n".join([
+            f"[第{i+1}段] {summary}" 
+            for i, summary in enumerate(segment_summaries)
+        ])
+        
+        # 步骤4：基于合并摘要生成最终结果
+        logger.info("🎯 生成最终分析结果...")
+        final_prompt = f"""基于以下分段摘要，生成一个完整的对话分析：
+
+{combined_summary}
+
+请提供：
+1. 整体摘要（100-150字，概括所有段落的核心内容）
+2. 主要分类（从：编程、写作、学习、策划、休闲娱乐、其他 中选择最合适的）
+3. 关键标签（3-5个，提取最重要的主题词）
+4. 置信度（0-1之间的浮点数）
+
+JSON格式输出：
+{{
+  "summary": "...",
+  "category": "...",
+  "tags": ["tag1", "tag2", "tag3"],
+  "confidence": 0.85
+}}"""
+        
+        system_prompt = "你是一个专业的AI对话分析助手，擅长从多个分段摘要中提取整体信息。"
+        response = self.generate(final_prompt, system_prompt)
+        
+        logger.info("✅ 分段分析完成")
+        
+        return self._parse_analysis_result(response)
+    
+    def _split_into_segments(self, text: str, max_segment_length: int = 6000) -> list:
+        """
+        智能分段：按对话轮次分割
+        
+        优先在对话边界（User/Assistant）处分割，避免截断单条消息
+        """
+        # 处理空文本或极短文本
+        if not text or len(text) <= max_segment_length:
+            return [text] if text else []
+        
+        # 尝试按对话轮次分割（常见的分隔符）
+        separators = [
+            '\n\nUser:',
+            '\n\nAssistant:',
+            '\n\n用户:',
+            '\n\n助手:',
+            '\n\n## ',
+            '\n\n### ',
+            '\n\n---',
+            '\n\n'
+        ]
+        
+        segments = []
+        remaining_text = text
+        
+        while len(remaining_text) > max_segment_length:
+            # 在max_segment_length附近找最佳分割点
+            search_start = max(0, max_segment_length - 500)
+            search_end = min(len(remaining_text), max_segment_length + 500)
+            search_range = remaining_text[search_start:search_end]
+            
+            # 寻找最近的分隔符
+            best_split = -1
+            for separator in separators:
+                pos = search_range.rfind(separator)
+                if pos != -1:
+                    best_split = search_start + pos
+                    break
+            
+            # 如果找不到分隔符，强制在max_segment_length处分割
+            if best_split == -1:
+                best_split = max_segment_length
+            
+            # 分割
+            segments.append(remaining_text[:best_split].strip())
+            remaining_text = remaining_text[best_split:].strip()
+        
+        # 添加最后一段
+        if remaining_text:
+            segments.append(remaining_text)
+        
+        return segments
+    
+    def _summarize_segment(self, segment: str, segment_num: int) -> str:
+        """
+        对单个分段生成摘要
+        
+        Args:
+            segment: 分段文本
+            segment_num: 分段序号
+        
+        Returns:
+            该段的摘要（100-150字）
+        """
+        prompt = f"""请为以下对话片段生成简洁摘要（100-150字）：
+
+{segment[:3000]}  {'...(后续内容省略)' if len(segment) > 3000 else ''}
+
+摘要要求：
+1. 概括这段对话的主要内容和结论
+2. 保留关键信息（问题、解决方案、重要观点）
+3. 100-150字以内
+4. 直接输出摘要文本，不要额外解释
+
+摘要："""
+        
+        system_prompt = f"你是一个摘要生成助手，正在处理长对话的第{segment_num}段。"
+        
+        try:
+            summary = self.generate(prompt, system_prompt)
+            return summary.strip()
+        except Exception as e:
+            # 降级：返回前150字
+            return segment[:150] + "..."
     
     def _build_analysis_prompt(self, conversation_text: str) -> str:
         """构建分析提示词"""

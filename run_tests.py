@@ -1,109 +1,91 @@
+#!/usr/bin/env python3
 """
-测试运行脚本
-提供便捷的测试运行方式
+ChatCompass 测试运行脚本
+
+快速运行各类测试的便捷脚本。
 """
 import sys
-import pytest
-from pathlib import Path
+import subprocess
+import argparse
 
 
-def run_all_tests():
-    """运行所有测试"""
-    print("=" * 60)
-    print("运行所有测试")
-    print("=" * 60)
-    return pytest.main(["-v", "tests/"])
-
-
-def run_unit_tests():
-    """仅运行单元测试"""
-    print("=" * 60)
-    print("运行单元测试")
-    print("=" * 60)
-    return pytest.main(["-v", "tests/unit/"])
-
-
-def run_integration_tests():
-    """仅运行集成测试"""
-    print("=" * 60)
-    print("运行集成测试")
-    print("=" * 60)
-    return pytest.main(["-v", "tests/integration/"])
-
-
-def run_coverage():
-    """运行测试并生成覆盖率报告"""
-    print("=" * 60)
-    print("运行测试并生成覆盖率报告")
-    print("=" * 60)
-    return pytest.main([
-        "-v",
-        "--cov=database",
-        "--cov=scrapers",
-        "--cov=ai",
-        "--cov-report=html",
-        "--cov-report=term-missing",
-        "tests/"
-    ])
-
-
-def run_specific_file(filepath):
-    """运行指定测试文件"""
-    print("=" * 60)
-    print(f"运行测试文件: {filepath}")
-    print("=" * 60)
-    return pytest.main(["-v", filepath])
+def run_command(cmd):
+    """运行命令并返回结果"""
+    print(f"\n{'='*70}")
+    print(f"运行: {' '.join(cmd)}")
+    print('='*70)
+    result = subprocess.run(cmd, capture_output=False)
+    return result.returncode == 0
 
 
 def main():
-    """主函数"""
-    if len(sys.argv) > 1:
-        command = sys.argv[1]
-        
-        if command == "unit":
-            exit_code = run_unit_tests()
-        elif command == "integration":
-            exit_code = run_integration_tests()
-        elif command == "coverage":
-            exit_code = run_coverage()
-        elif command == "file" and len(sys.argv) > 2:
-            exit_code = run_specific_file(sys.argv[2])
-        elif command == "help":
-            print_help()
-            exit_code = 0
-        else:
-            print(f"未知命令: {command}")
-            print_help()
-            exit_code = 1
-    else:
-        # 默认运行所有测试
-        exit_code = run_all_tests()
+    parser = argparse.ArgumentParser(description='ChatCompass测试运行脚本')
+    parser.add_argument('test_type', nargs='?', default='all',
+                        choices=['all', 'unit', 'e2e', 'integration', 'quick', 'cov'],
+                        help='测试类型')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='详细输出')
+    parser.add_argument('-k', '--keyword', type=str,
+                        help='按关键词过滤测试')
+    parser.add_argument('-m', '--marker', type=str,
+                        help='按标记过滤测试')
     
-    return exit_code
-
-
-def print_help():
-    """打印帮助信息"""
-    print("""
-测试运行脚本
-
-用法:
-    python run_tests.py [命令]
-
-命令:
-    (无)          - 运行所有测试
-    unit          - 仅运行单元测试
-    integration   - 仅运行集成测试
-    coverage      - 运行测试并生成覆盖率报告
-    file <路径>   - 运行指定测试文件
-    help          - 显示此帮助信息
-
-示例:
-    python run_tests.py
-    python run_tests.py unit
-    python run_tests.py file tests/unit/test_database.py
-    python run_tests.py coverage
-    """)
+    args = parser.parse_args()
+    
+    # 基础pytest命令
+    base_cmd = ['pytest']
+    if args.verbose:
+        base_cmd.append('-v')
+    if args.keyword:
+        base_cmd.extend(['-k', args.keyword])
+    if args.marker:
+        base_cmd.extend(['-m', args.marker])
+    
+    # 根据测试类型选择
+    if args.test_type == 'all':
+        print("\n🧪 运行所有测试...")
+        cmd = base_cmd + ['tests/']
+        success = run_command(cmd)
+    
+    elif args.test_type == 'unit':
+        print("\n⚡ 运行单元测试...")
+        cmd = base_cmd + ['tests/unit/']
+        success = run_command(cmd)
+    
+    elif args.test_type == 'e2e':
+        print("\n🎯 运行E2E测试...")
+        cmd = base_cmd + ['tests/e2e/']
+        success = run_command(cmd)
+    
+    elif args.test_type == 'integration':
+        print("\n🔗 运行集成测试...")
+        cmd = base_cmd + ['tests/integration/']
+        success = run_command(cmd)
+    
+    elif args.test_type == 'quick':
+        print("\n⚡ 运行快速测试（跳过慢速测试）...")
+        cmd = base_cmd + ['-m', 'not slow', 'tests/']
+        success = run_command(cmd)
+    
+    elif args.test_type == 'cov':
+        print("\n📊 运行测试并生成覆盖率报告...")
+        cmd = base_cmd + [
+            '--cov=.',
+            '--cov-report=html',
+            '--cov-report=term',
+            'tests/'
+        ]
+        success = run_command(cmd)
+        if success:
+            print("\n✅ 覆盖率报告已生成: htmlcov/index.html")
+    
+    # 返回结果
+    if success:
+        print("\n✅ 所有测试通过！")
+        return 0
+    else:
+        print("\n❌ 测试失败")
+        return 1
 
 
 if __name__ == '__main__':

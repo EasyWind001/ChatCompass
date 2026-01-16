@@ -44,7 +44,8 @@ class ChatGPTScraper(BaseScraper):
     
     def _scrape_with_playwright(self, url: str) -> ConversationData:
         """使用Playwright抓取（推荐方式）"""
-        print(f"[ChatGPT] 使用Playwright抓取: {url}")
+        print(f"[ChatGPT] 🌐 使用Playwright抓取: {url}")
+        print(f"[ChatGPT] ⏳ 正在启动浏览器...")
         
         with sync_playwright() as p:
             # 启动浏览器（无头模式）
@@ -56,9 +57,11 @@ class ChatGPTScraper(BaseScraper):
             
             try:
                 # 访问页面
+                print(f"[ChatGPT] 📡 正在加载页面...")
                 page.goto(url, wait_until='networkidle', timeout=30000)
                 
                 # 尝试多种选择器等待内容加载
+                print(f"[ChatGPT] ⏳ 等待内容加载...")
                 selectors_to_try = [
                     '[data-testid^="conversation-turn"]',
                     'article',
@@ -93,12 +96,14 @@ class ChatGPTScraper(BaseScraper):
                 title = self._extract_title(soup, page)
                 
                 # 提取消息（尝试多种方法）
+                print(f"[ChatGPT] 🔍 正在提取对话内容...")
                 messages = self._extract_messages_enhanced(soup, page)
                 
                 if not messages:
                     raise ValueError("未能提取到对话内容，可能页面结构已变化。请运行 debug_chatgpt.py 诊断问题。")
                 
-                print(f"[ChatGPT] 成功提取 {len(messages)} 条消息")
+                total_chars = sum(len(msg.content) for msg in messages)
+                print(f"[ChatGPT] ✅ 成功提取 {len(messages)} 条消息（共 {total_chars:,} 字符）")
                 
                 return ConversationData(
                     platform=self.platform_name,

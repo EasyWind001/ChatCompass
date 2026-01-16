@@ -180,6 +180,54 @@ class ChatCompass:
             print(f"      💡 输入 'show {result['id']}' 查看完整对话")
             print()
     
+    def delete_conversation(self, identifier: str):
+        """删除单个对话
+        
+        Args:
+            identifier: 对话ID或URL
+        """
+        # 尝试作为ID查询
+        conversation = self.db.get_conversation(identifier)
+        
+        # 如果未找到，尝试作为URL查询
+        if not conversation:
+            conversation = self.db.get_conversation_by_url(identifier)
+        
+        if not conversation:
+            print(f"\n❌ 未找到对话: {identifier}")
+            print("提示: 使用 'list' 命令查看所有对话")
+            return False
+        
+        # 显示将要删除的对话信息
+        print("\n" + "=" * 70)
+        print(f"⚠️  确认删除对话")
+        print("=" * 70)
+        print(f"ID: {conversation['id']}")
+        print(f"标题: {conversation['title']}")
+        print(f"平台: {conversation['platform']}")
+        print(f"创建时间: {conversation['created_at']}")
+        
+        # 询问确认
+        try:
+            confirm = input("\n确定删除吗？(yes/no): ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            print("\n\n❌ 已取消删除")
+            return False
+        
+        if confirm not in ['yes', 'y']:
+            print("\n❌ 已取消删除")
+            return False
+        
+        # 执行删除
+        success = self.db.delete_conversation(conversation['id'])
+        
+        if success:
+            print(f"\n✅ 删除成功: {conversation['title']}")
+            return True
+        else:
+            print(f"\n❌ 删除失败")
+            return False
+    
     def show_statistics(self):
         """显示统计信息"""
         stats = self.db.get_statistics()
@@ -211,18 +259,11 @@ class ChatCompass:
         import json
         
         # 尝试作为ID查询
-        conversation = None
-        if identifier.isdigit():
-            conv_id = int(identifier)
-            conversation = self.db.get_conversation(conv_id)
+        conversation = self.db.get_conversation(identifier)
         
-        # 如果不是数字或未找到，尝试作为URL查询
+        # 如果未找到，尝试作为URL查询
         if not conversation:
-            cursor = self.db.conn.cursor()
-            cursor.execute("SELECT * FROM conversations WHERE source_url = ?", (identifier,))
-            row = cursor.fetchone()
-            if row:
-                conversation = dict(row)
+            conversation = self.db.get_conversation_by_url(identifier)
         
         if not conversation:
             print(f"\n未找到对话: {identifier}")
@@ -322,6 +363,7 @@ class ChatCompass:
   search <keyword> - 搜索对话
   list             - 列出最近的对话
   show <id|url>    - 查看对话详细内容
+  delete <id|url>  - 删除对话（需要确认）
   stats            - 显示统计信息
   help             - 显示帮助
   exit             - 退出程序
@@ -330,6 +372,8 @@ class ChatCompass:
   show 1                          - 查看ID为1的对话
   show 4                          - 查看ID为4的对话
   show https://chatgpt.com/...    - 通过URL查看对话
+  delete 1                        - 删除ID为1的对话
+  delete https://chatgpt.com/...  - 通过URL删除对话
                     """)
                 
                 elif command.startswith('add '):
@@ -347,6 +391,14 @@ class ChatCompass:
                     else:
                         print("请指定对话ID或URL")
                         print("示例: show 1  或  show https://chatgpt.com/...")
+                
+                elif command.startswith('delete '):
+                    identifier = command[7:].strip()
+                    if identifier:
+                        self.delete_conversation(identifier)
+                    else:
+                        print("请指定对话ID或URL")
+                        print("示例: delete 1  或  delete https://chatgpt.com/...")
                 
                 elif command == 'list':
                     conversations = self.db.get_all_conversations(limit=10)
@@ -399,6 +451,10 @@ def main():
             identifier = sys.argv[2]
             app.show_conversation(identifier)
         
+        elif command == 'delete' and len(sys.argv) > 2:
+            identifier = sys.argv[2]
+            app.delete_conversation(identifier)
+        
         elif command == 'stats':
             app.show_statistics()
         
@@ -407,7 +463,7 @@ def main():
             # TODO: 启动PyQt6 GUI
         
         else:
-            print(f"用法: python main.py [add <url> | search <keyword> | show <id|url> | stats | gui]")
+            print(f"用法: python main.py [add <url> | search <keyword> | show <id|url> | delete <id|url> | stats | gui]")
     
     else:
         # 无参数时进入交互模式

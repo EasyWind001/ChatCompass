@@ -162,7 +162,9 @@ class ClipboardMonitor(QObject):
         if dialog.exec():  # 用户点击"添加"
             # 触发添加操作
             from gui.dialogs.add_dialog import AddDialog
-            add_dialog = AddDialog(self.storage, url)
+            add_dialog = AddDialog(db=self.storage, parent=None)
+            # 预填充URL到对话框
+            add_dialog.url_input.setText(url)
             add_dialog.exec()
     
     def clear_detected_urls(self):

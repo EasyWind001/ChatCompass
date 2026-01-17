@@ -26,6 +26,7 @@ from gui.system_tray import SystemTray
 from gui.task_manager import TaskManager
 from gui.widgets.progress_widget import ProgressWidget
 from gui.widgets.search_bar import SearchBar
+from gui.error_handler import handle_error, handle_warning
 
 
 class MainWindow(QMainWindow):
@@ -202,6 +203,12 @@ class MainWindow(QMainWindow):
         
         # 帮助菜单
         help_menu = menubar.addMenu("帮助(&H)")
+        
+        # 查看错误日志
+        view_errors_action = QAction("查看错误日志", self)
+        view_errors_action.triggered.connect(self.show_error_viewer)
+        help_menu.addAction(view_errors_action)
+        
         help_menu.addAction(self.help_action)
         help_menu.addSeparator()
         help_menu.addAction(self.about_action)
@@ -275,18 +282,28 @@ class MainWindow(QMainWindow):
                     f"✅ 成功添加: {conversation.get('title', 'Unknown')}", 
                     3000
                 )
+    
+    def _on_clipboard_conversation_added(self, conversation: dict):
+        """处理从剪贴板监控添加的对话"""
+        # 刷新列表
+        self.refresh_list()
+        # 显示提示
+        self.statusBar().showMessage(
+            f"✅ 通过剪贴板添加: {conversation.get('title', 'Unknown')}", 
+            5000
+        )
                 
     def refresh_list(self):
         """刷新对话列表"""
         try:
-            conversations = self.db.list_conversations()
+            conversations = self.db.get_all_conversations()
             self.conversation_list.load_conversations(conversations)
             self._update_stats()
         except Exception as e:
-            QMessageBox.critical(
-                self,
-                "错误",
-                f"刷新列表失败: {str(e)}"
+            handle_error(
+                e,
+                parent=self,
+                user_message="刷新对话列表失败,请检查数据库连接"
             )
             
     def search_conversations(self, keyword: str):
@@ -310,10 +327,10 @@ class MainWindow(QMainWindow):
                 3000
             )
         except Exception as e:
-            QMessageBox.critical(
-                self,
-                "错误",
-                f"搜索失败: {str(e)}"
+            handle_error(
+                e,
+                parent=self,
+                user_message=f"搜索关键词'{keyword}'失败,请重试"
             )
             
     def _on_search(self):
@@ -350,7 +367,7 @@ class MainWindow(QMainWindow):
         """删除选中的对话"""
         selected = self.conversation_list.get_selected_conversation()
         if not selected:
-            QMessageBox.warning(self, "警告", "请先选择要删除的对话")
+            handle_warning("请先选择要删除的对话", parent=self)
             return
         
         conv_id = selected.get('id')
@@ -372,8 +389,18 @@ class MainWindow(QMainWindow):
                 # 清空详情面板
                 self.detail_panel._clear()
             except Exception as e:
-                QMessageBox.critical(self, "错误", f"删除失败: {str(e)}")
+                handle_error(
+                    e,
+                    parent=self,
+                    user_message=f"删除对话'{title}'失败,请重试"
+                )
             
+    def show_error_viewer(self):
+        """显示错误查看器"""
+        from gui.dialogs.error_viewer import ErrorViewerDialog
+        dialog = ErrorViewerDialog(self)
+        dialog.exec()
+    
     def show_about(self):
         """显示关于对话框"""
         QMessageBox.about(
@@ -398,6 +425,8 @@ class MainWindow(QMainWindow):
             return
         
         self.clipboard_monitor = ClipboardMonitor(self.db)
+        # 连接信号: 当通过剪贴板监控添加对话时，刷新列表
+        self.clipboard_monitor.conversation_added.connect(self._on_clipboard_conversation_added)
         self.clipboard_monitor.start()
         self.statusBar().showMessage("✅ 剪贴板监控已启动", 2000)
         

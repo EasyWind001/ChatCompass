@@ -28,6 +28,7 @@ class ClipboardMonitor(QObject):
     
     # 信号
     ai_url_detected = pyqtSignal(str)  # 检测到AI对话URL
+    conversation_added = pyqtSignal(dict)  # 对话添加成功
     
     # 支持的AI对话平台URL模式
     AI_URL_PATTERNS = [
@@ -165,7 +166,14 @@ class ClipboardMonitor(QObject):
             add_dialog = AddDialog(db=self.storage, parent=None)
             # 预填充URL到对话框
             add_dialog.url_input.setText(url)
-            add_dialog.exec()
+            
+            # 执行对话框
+            if add_dialog.exec():
+                # 添加成功，发出信号
+                conversation = add_dialog.get_conversation()
+                if conversation:
+                    self.conversation_added.emit(conversation)
+                    logger.info(f"通过剪贴板监控添加对话: {conversation.get('title', 'Unknown')}")
     
     def clear_detected_urls(self):
         """清空已检测URL缓存"""

@@ -75,14 +75,14 @@ def get_storage(db_path=None):
         db_path: 数据库路径 (可选,默认使用配置中的路径)
         
     Returns:
-        SQLiteManager实例
+        DatabaseManager实例
     """
-    from database.sqlite_manager import SQLiteManager
+    from database.db_manager import DatabaseManager
     
     if db_path is None:
         db_path = DATABASE_PATH
         
-    return SQLiteManager(db_path)
+    return DatabaseManager(db_path)
 
 
 def get_ai_client():

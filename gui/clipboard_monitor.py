@@ -34,7 +34,7 @@ class ClipboardMonitor(QObject):
         r'https?://chat\.openai\.com/c/[\w-]+',
         r'https?://chatgpt\.com/share/[\w-]+',
         r'https?://claude\.ai/chat/[\w-]+',
-        r'https?://chat\.deepseek\.com/a/chat/[\w-]+',
+        r'https?://chat\.deepseek\.com/share/[\w-]+',  # 修复: DeepSeek分享链接格式
         r'https?://kimi\.moonshot\.cn/share/[\w-]+',
         r'https?://poe\.com/s/[\w-]+',
         r'https?://gemini\.google\.com/share/[\w-]+',

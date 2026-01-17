@@ -6,6 +6,7 @@ MainWindow - ChatCompass主窗口
 - 搜索和过滤
 - 添加/查看/删除对话
 - 系统托盘集成
+- 剪贴板监控
 """
 from typing import Optional, List, Dict, Any
 from PyQt6.QtWidgets import (
@@ -20,6 +21,8 @@ from config import get_storage
 from gui.conversation_list import ConversationList
 from gui.detail_panel import DetailPanel
 from gui.dialogs.add_dialog import AddDialog
+from gui.clipboard_monitor import ClipboardMonitor
+from gui.system_tray import SystemTray
 
 
 class MainWindow(QMainWindow):
@@ -29,18 +32,27 @@ class MainWindow(QMainWindow):
     conversation_added = pyqtSignal(dict)  # 对话添加信号
     conversation_deleted = pyqtSignal(int)  # 对话删除信号
     
-    def __init__(self, db_path: Optional[str] = None, parent=None):
+    def __init__(self, db_path: Optional[str] = None, parent=None, 
+                 enable_tray: bool = True, enable_monitor: bool = True):
         """
         初始化主窗口
         
         Args:
             db_path: 数据库路径 (可选)
             parent: 父窗口
+            enable_tray: 是否启用系统托盘
+            enable_monitor: 是否启用剪贴板监控
         """
         super().__init__(parent)
         
         # 数据库连接
         self.db = get_storage(db_path) if db_path else get_storage()
+        
+        # 组件引用
+        self.clipboard_monitor: Optional[ClipboardMonitor] = None
+        self.system_tray: Optional[SystemTray] = None
+        self.enable_tray = enable_tray
+        self.enable_monitor = enable_monitor
         
         # 设置窗口属性
         self.setWindowTitle("ChatCompass - AI对话知识库")
@@ -54,6 +66,10 @@ class MainWindow(QMainWindow):
         self._create_toolbar()
         self._create_statusbar()
         self._connect_signals()
+        
+        # 初始化监控和托盘
+        self._init_monitor()
+        self._init_tray()
         
         # 加载数据
         self.refresh_list()
@@ -308,7 +324,75 @@ class MainWindow(QMainWindow):
             "<p><b>项目地址:</b> <a href='https://github.com/yourusername/ChatCompass'>GitHub</a></p>"
         )
         
+    def _init_monitor(self):
+        """初始化剪贴板监控"""
+        if not self.enable_monitor:
+            return
+        
+        self.clipboard_monitor = ClipboardMonitor(self.db)
+        self.clipboard_monitor.start()
+        self.statusBar().showMessage("✅ 剪贴板监控已启动", 2000)
+        
+    def _init_tray(self):
+        """初始化系统托盘"""
+        if not self.enable_tray:
+            return
+        
+        from PyQt6.QtWidgets import QApplication
+        self.system_tray = SystemTray(QApplication.instance())
+        
+        # 连接信号
+        self.system_tray.show_window.connect(self.show_and_activate)
+        self.system_tray.quit_app.connect(self.quit_app)
+        self.system_tray.toggle_monitor.connect(self.toggle_monitor)
+        
+        self.system_tray.show()
+        self.statusBar().showMessage("✅ 系统托盘已启动", 2000)
+    
+    def show_and_activate(self):
+        """显示并激活窗口"""
+        self.show()
+        self.raise_()
+        self.activateWindow()
+    
+    def toggle_monitor(self, enabled: bool):
+        """切换剪贴板监控"""
+        if not self.clipboard_monitor:
+            return
+        
+        if enabled:
+            self.clipboard_monitor.start()
+            self.statusBar().showMessage("✅ 剪贴板监控已启用", 3000)
+        else:
+            self.clipboard_monitor.stop()
+            self.statusBar().showMessage("⏸️ 剪贴板监控已禁用", 3000)
+    
+    def quit_app(self):
+        """退出应用"""
+        # 停止监控
+        if self.clipboard_monitor:
+            self.clipboard_monitor.stop()
+        
+        # 隐藏托盘
+        if self.system_tray:
+            self.system_tray.hide()
+        
+        # 退出
+        from PyQt6.QtWidgets import QApplication
+        QApplication.instance().quit()
+    
     def closeEvent(self, event):
         """窗口关闭事件"""
-        # TODO: 保存窗口状态
-        event.accept()
+        if self.system_tray and self.system_tray.tray_icon.isVisible():
+            # 最小化到托盘
+            self.hide()
+            self.system_tray.show_message(
+                "ChatCompass",
+                "应用已最小化到系统托盘",
+                duration=2000
+            )
+            event.ignore()
+        else:
+            # 直接退出
+            self.quit_app()
+            event.accept()

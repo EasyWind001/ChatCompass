@@ -67,6 +67,24 @@ TAG_COLORS = {
 }
 
 
+def get_storage(db_path=None):
+    """
+    获取数据库存储实例
+    
+    Args:
+        db_path: 数据库路径 (可选,默认使用配置中的路径)
+        
+    Returns:
+        SQLiteManager实例
+    """
+    from database.sqlite_manager import SQLiteManager
+    
+    if db_path is None:
+        db_path = DATABASE_PATH
+        
+    return SQLiteManager(db_path)
+
+
 def get_ai_client():
     """根据配置获取AI客户端"""
     if AI_MODE == 'local':

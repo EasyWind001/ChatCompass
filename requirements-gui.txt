@@ -1,0 +1,23 @@
+# ChatCompass GUI Dependencies
+# For v1.3.0 GUI features
+
+# Core requirements (from main requirements.txt)
+# PyQt6 - Cross-platform GUI framework
+PyQt6>=6.6.0
+PyQt6-Qt6>=6.6.0
+PyQt6-sip>=13.6.0
+
+# System tray and clipboard monitoring
+pyperclip>=1.8.2  # Cross-platform clipboard access
+pystray>=0.19.5   # System tray icon (fallback)
+
+# Async support
+asyncio-mqtt>=0.16.2  # Async utilities
+aiofiles>=23.2.1      # Async file operations
+
+# Optional: Enhanced UI
+qdarkstyle>=3.2.0     # Dark theme support
+
+# Testing
+pytest-qt>=4.3.0      # PyQt testing support
+pytest-asyncio>=0.23.0  # Async testing

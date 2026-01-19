@@ -4,6 +4,7 @@
 # GUI框架
 PyQt6==6.6.1
 PyQt6-WebEngine==6.6.0
+PyQt6-Fluent-Widgets==1.10.5
 
 # 网页抓取
 playwright==1.41.0
